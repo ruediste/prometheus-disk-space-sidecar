@@ -17,7 +17,12 @@ public class App {
 			.register();
 
 	public static void main(String[] args) throws Exception {
-		for (File root : new File("/data").listFiles()) {
+		File dataDir = new File("/data");
+		if (!dataDir.exists()) {
+			System.err.println("Directory /data does not exist. Mount file systems to monitor there.");
+			System.exit(1);
+		}
+		for (File root : dataDir.listFiles()) {
 			if (!root.isDirectory())
 				continue;
 
