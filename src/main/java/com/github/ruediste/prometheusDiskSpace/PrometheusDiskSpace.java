@@ -9,7 +9,7 @@ import io.prometheus.client.Gauge.Child;
 import io.prometheus.client.exporter.HTTPServer;
 import io.prometheus.client.exporter.PushGateway;
 
-public class App {
+public class PrometheusDiskSpace {
 	static Gauge totalSpace = Gauge.build("fs_total_space", "Total space of the file system in bytes")
 			.labelNames("name").register();
 
@@ -18,28 +18,29 @@ public class App {
 
 	public static void main(String[] args) throws Exception {
 		File dataDir = new File("/data");
-		if (!dataDir.exists()) {
-			System.err.println("Directory /data does not exist. Mount file systems to monitor there.");
+		boolean anyRegistered = false;
+		if (dataDir.exists())
+			for (File root : dataDir.listFiles()) {
+				if (!root.isDirectory())
+					continue;
+				register(root, root.getName());
+				anyRegistered = true;
+			}
+
+		File hostnameDir = new File("/hostname");
+		if (hostnameDir.exists())
+			for (File root : hostnameDir.listFiles()) {
+				if (!root.isDirectory())
+					continue;
+				register(root, System.getenv("HOSTNAME") + "-" + root.getName());
+				anyRegistered = true;
+			}
+
+		if (!anyRegistered) {
+			System.err.println("No file systems found to monitor. Mount them under /data or /hostname");
 			System.exit(1);
 		}
-		for (File root : dataDir.listFiles()) {
-			if (!root.isDirectory())
-				continue;
 
-			System.out.println("Monitoring " + root.getAbsolutePath() + " as " + root.getName());
-			totalSpace.setChild(new Child() {
-				@Override
-				public double get() {
-					return root.getTotalSpace();
-				}
-			}, root.getName());
-			freeSpace.setChild(new Child() {
-				@Override
-				public double get() {
-					return root.getUsableSpace();
-				}
-			}, root.getName());
-		}
 		String serverPort = System.getenv("SERVER_PORT");
 		if (serverPort != null) {
 			int port = Integer.parseInt(serverPort);
@@ -62,5 +63,21 @@ public class App {
 				Thread.sleep(Duration.ofSeconds(10).toMillis());
 			}
 		}
+	}
+
+	private static void register(File root, String name) {
+		System.out.println("Monitoring " + root.getAbsolutePath() + " as " + name);
+		totalSpace.setChild(new Child() {
+			@Override
+			public double get() {
+				return root.getTotalSpace();
+			}
+		}, name);
+		freeSpace.setChild(new Child() {
+			@Override
+			public double get() {
+				return root.getUsableSpace();
+			}
+		}, name);
 	}
 }
